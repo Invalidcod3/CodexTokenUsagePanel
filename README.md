@@ -44,6 +44,14 @@
 
 ## 重新编译
 
+生成可直接分发的自包含 ZIP（默认 `win-x64`，不携带本机缓存或导入数据）：
+
+```powershell
+.\Build-Distribution.ps1
+```
+
+也可以双击 `Build-Distribution.cmd`。产物位于 `dist\release`，同时生成 `.sha256` 校验文件。ARM64 使用 `-Runtime win-arm64`；如果希望缩小体积并要求目标电脑安装 .NET 8 Desktop Runtime，可增加 `-FrameworkDependent`。
+
 电脑已安装 .NET 8 SDK 或更高版本时，双击 `Build-App.cmd`，或运行：
 
 ```powershell
