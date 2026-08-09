@@ -2,3 +2,4 @@
 .nuget-packages/
 CodexMeter.App/bin/
 CodexMeter.App/obj/
+dist
