@@ -1,0 +1,110 @@
+{
+    "kind":  "codex-token-meter-history-cache",
+    "schemaVersion":  1,
+    "updatedAt":  "2026-08-09T14:03:19.6379969+08:00",
+    "accounts":  [
+                     {
+                         "account":  {
+                                         "accountKey":  "acct-d770000f6a96292016ec1667",
+                                         "type":  "chatgpt",
+                                         "plan":  "",
+                                         "emailMasked":  "",
+                                         "emailHash":  ""
+                                     },
+                         "devices":  [
+                                         {
+                                             "deviceId":  "8c9da94a-1ab3-4560-8af9-a9e953ba1073",
+                                             "deviceCode":  "DEV-7D39-B2C9-7CD7",
+                                             "name":  "LAPTOP-I16BNEFK",
+                                             "platform":  "windows",
+                                             "lastSeenAt":  "2026-08-09T14:03:19.6379969+08:00"
+                                         }
+                                     ],
+                         "firstDate":  "2026-07-31",
+                         "lastDate":  "2026-08-09",
+                         "days":  [
+                                      {
+                                          "date":  "2026-07-31",
+                                          "accountTokens":  0,
+                                          "localUsage":  {
+                                                             "inputTokens":  27676926,
+                                                             "cachedInputTokens":  26879232,
+                                                             "cacheWriteInputTokens":  0,
+                                                             "outputTokens":  95072,
+                                                             "reasoningOutputTokens":  27840,
+                                                             "totalTokens":  27771998,
+                                                             "longInputTokens":  0,
+                                                             "longCachedInputTokens":  0,
+                                                             "longCacheWriteInputTokens":  0,
+                                                             "longOutputTokens":  0,
+                                                             "requests":  239,
+                                                             "longRequests":  0
+                                                         },
+                                          "complete":  true,
+                                          "updatedAt":  "2026-08-09T14:03:19.6379969+08:00"
+                                      },
+                                      {
+                                          "date":  "2026-08-04",
+                                          "accountTokens":  0,
+                                          "localUsage":  {
+                                                             "inputTokens":  64327682,
+                                                             "cachedInputTokens":  62081792,
+                                                             "cacheWriteInputTokens":  0,
+                                                             "outputTokens":  304819,
+                                                             "reasoningOutputTokens":  82581,
+                                                             "totalTokens":  64632501,
+                                                             "longInputTokens":  0,
+                                                             "longCachedInputTokens":  0,
+                                                             "longCacheWriteInputTokens":  0,
+                                                             "longOutputTokens":  0,
+                                                             "requests":  517,
+                                                             "longRequests":  0
+                                                         },
+                                          "complete":  true,
+                                          "updatedAt":  "2026-08-09T14:03:19.6379969+08:00"
+                                      },
+                                      {
+                                          "date":  "2026-08-05",
+                                          "accountTokens":  0,
+                                          "localUsage":  {
+                                                             "inputTokens":  78047933,
+                                                             "cachedInputTokens":  75867392,
+                                                             "cacheWriteInputTokens":  0,
+                                                             "outputTokens":  323652,
+                                                             "reasoningOutputTokens":  87725,
+                                                             "totalTokens":  78371585,
+                                                             "longInputTokens":  0,
+                                                             "longCachedInputTokens":  0,
+                                                             "longCacheWriteInputTokens":  0,
+                                                             "longOutputTokens":  0,
+                                                             "requests":  615,
+                                                             "longRequests":  0
+                                                         },
+                                          "complete":  true,
+                                          "updatedAt":  "2026-08-09T14:03:19.6379969+08:00"
+                                      },
+                                      {
+                                          "date":  "2026-08-09",
+                                          "accountTokens":  0,
+                                          "localUsage":  {
+                                                             "inputTokens":  11553007,
+                                                             "cachedInputTokens":  11218816,
+                                                             "cacheWriteInputTokens":  0,
+                                                             "outputTokens":  46190,
+                                                             "reasoningOutputTokens":  11264,
+                                                             "totalTokens":  11599197,
+                                                             "longInputTokens":  0,
+                                                             "longCachedInputTokens":  0,
+                                                             "longCacheWriteInputTokens":  0,
+                                                             "longOutputTokens":  0,
+                                                             "requests":  85,
+                                                             "longRequests":  0
+                                                         },
+                                          "complete":  false,
+                                          "updatedAt":  "2026-08-09T14:03:19.6379969+08:00"
+                                      }
+                                  ],
+                         "updatedAt":  "2026-08-09T14:03:19.6379969+08:00"
+                     }
+                 ]
+}

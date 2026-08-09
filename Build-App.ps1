@@ -8,8 +8,12 @@ $ErrorActionPreference = 'Stop'
 $projectRoot = $PSScriptRoot
 $project = Join-Path $projectRoot 'CodexMeter.App\CodexMeter.App.csproj'
 $output = Join-Path $projectRoot 'dist\CodexMeter'
-$runtimeConfig = Join-Path $output 'meter.config.json'
-$runtimeAccountCache = Join-Path $output 'meter.account-cache.json'
+$preservedRuntimeFiles = @(
+    'meter.config.json',
+    'meter.account-cache.json',
+    'meter.identity.json',
+    'meter.history.json'
+)
 $cliHome = Join-Path $projectRoot '.dotnet-home'
 $packages = Join-Path $projectRoot '.nuget-packages'
 
@@ -22,12 +26,13 @@ if (Get-Process -Name 'CodexMeter' -ErrorAction SilentlyContinue) {
     throw 'Codex Meter is running. Exit it from the tray menu before rebuilding.'
 }
 
-$preservedRuntimeConfig = if (Test-Path -LiteralPath $runtimeConfig) {
-    [IO.File]::ReadAllText($runtimeConfig, [Text.Encoding]::UTF8)
-} else { $null }
-$preservedAccountCache = if (Test-Path -LiteralPath $runtimeAccountCache) {
-    [IO.File]::ReadAllText($runtimeAccountCache, [Text.Encoding]::UTF8)
-} else { $null }
+$preservedRuntimeData = @{}
+foreach ($fileName in $preservedRuntimeFiles) {
+    $runtimePath = Join-Path $output $fileName
+    if (Test-Path -LiteralPath $runtimePath) {
+        $preservedRuntimeData[$fileName] = [IO.File]::ReadAllText($runtimePath, [Text.Encoding]::UTF8)
+    }
+}
 
 $arguments = @('publish', $project, '-c', 'Release', '-o', $output)
 if ($SelfContained) {
@@ -39,11 +44,8 @@ if ($SelfContained) {
 Write-Host 'Building Codex Meter...' -ForegroundColor Cyan
 & dotnet @arguments
 if ($LASTEXITCODE -ne 0) { throw "dotnet publish failed with exit code $LASTEXITCODE." }
-if ($null -ne $preservedRuntimeConfig) {
-    [IO.File]::WriteAllText($runtimeConfig, $preservedRuntimeConfig, [Text.UTF8Encoding]::new($false))
-}
-if ($null -ne $preservedAccountCache) {
-    [IO.File]::WriteAllText($runtimeAccountCache, $preservedAccountCache, [Text.UTF8Encoding]::new($false))
+foreach ($fileName in $preservedRuntimeData.Keys) {
+    [IO.File]::WriteAllText((Join-Path $output $fileName), $preservedRuntimeData[$fileName], [Text.UTF8Encoding]::new($false))
 }
 
 Write-Host "`nBuild complete: $output\CodexMeter.exe" -ForegroundColor Green

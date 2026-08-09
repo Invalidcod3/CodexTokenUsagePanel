@@ -14,14 +14,19 @@ $sessionIndexPath = Join-Path $CodexHome 'session_index.jsonl'
 $importsRoot = Join-Path $scriptRoot 'imports'
 $importedSessionsRoot = Join-Path $importsRoot 'sessions'
 $bundlesRoot = Join-Path $importsRoot 'bundles'
+$importedDevicesRoot = Join-Path $importsRoot 'devices'
 $configPath = Join-Path $scriptRoot 'meter.config.json'
 $accountLiveStatePath = Join-Path $scriptRoot 'meter.account-cache.json'
+$identityPath = Join-Path $scriptRoot 'meter.identity.json'
+$historyPath = Join-Path $scriptRoot 'meter.history.json'
 $script:accountSnapshot = $null
 $script:accountSnapshotExpiresAt = [datetimeoffset]::MinValue
 $script:accountLiveSnapshotFetchedAt = ''
 $script:accountLiveBaseTokens = [long]0
 $script:accountLiveLocalBaselineTokens = [long]0
 $script:accountLiveLifetimeTokens = [long]0
+$script:accountLiveAccountKey = ''
+$script:deviceIdentity = $null
 $script:sessionParseCache = @{}
 $script:threadNameCache = $null
 
@@ -32,6 +37,7 @@ if (Test-Path -LiteralPath $accountLiveStatePath) {
         $script:accountLiveBaseTokens = [long]$storedLiveState.baseTokens
         $script:accountLiveLocalBaselineTokens = [long]$storedLiveState.localBaselineTokens
         $script:accountLiveLifetimeTokens = [long]$storedLiveState.liveLifetimeTokens
+        $script:accountLiveAccountKey = [string]$storedLiveState.accountKey
     } catch {}
 }
 
@@ -44,6 +50,7 @@ function Get-MeterConfig {
     $themeText = '#F3F6F4'
     $themeMuted = '#8A9290'
     $themeSecondary = '#9D84EF'
+    $numberUnitStyle = 'international'
     if (Test-Path -LiteralPath $configPath) {
         try {
             $stored = Get-Content -LiteralPath $configPath -Raw -Encoding UTF8 | ConvertFrom-Json
@@ -55,6 +62,7 @@ function Get-MeterConfig {
             if ([string]$stored.themeText -match '^#[0-9a-fA-F]{6}$') { $themeText = ([string]$stored.themeText).ToUpperInvariant() }
             if ([string]$stored.themeMuted -match '^#[0-9a-fA-F]{6}$') { $themeMuted = ([string]$stored.themeMuted).ToUpperInvariant() }
             if ([string]$stored.themeSecondary -match '^#[0-9a-fA-F]{6}$') { $themeSecondary = ([string]$stored.themeSecondary).ToUpperInvariant() }
+            if ([string]$stored.numberUnitStyle -in @('international', 'chinese')) { $numberUnitStyle = [string]$stored.numberUnitStyle }
         } catch {}
     }
     $refreshSeconds = [math]::Min([double]3600, [math]::Max([double]0.5, [double]$refreshSeconds))
@@ -67,6 +75,7 @@ function Get-MeterConfig {
         themeText = $themeText
         themeMuted = $themeMuted
         themeSecondary = $themeSecondary
+        numberUnitStyle = $numberUnitStyle
     }
 }
 
@@ -83,6 +92,7 @@ function Set-MeterRefreshInterval {
         themeText = $config.themeText
         themeMuted = $config.themeMuted
         themeSecondary = $config.themeSecondary
+        numberUnitStyle = $config.numberUnitStyle
     }
     $json = $updated | ConvertTo-Json -Depth 6
     [IO.File]::WriteAllText($configPath, $json, [Text.UTF8Encoding]::new($false))
@@ -104,9 +114,29 @@ function Set-MeterTheme {
         themeText = $Text.ToUpperInvariant()
         themeMuted = $Muted.ToUpperInvariant()
         themeSecondary = $Secondary.ToUpperInvariant()
+        numberUnitStyle = $config.numberUnitStyle
     }
     $json = $updated | ConvertTo-Json -Depth 6
     [IO.File]::WriteAllText($configPath, $json, [Text.UTF8Encoding]::new($false))
+    return $updated
+}
+
+function Set-MeterUnitStyle {
+    param([string]$Style)
+    if ($Style -notin @('international', 'chinese')) { throw 'Unsupported number unit style.' }
+    $config = Get-MeterConfig
+    $updated = [pscustomobject][ordered]@{
+        additionalSessionRoots = @($config.additionalSessionRoots)
+        refreshIntervalSeconds = [double]$config.refreshIntervalSeconds
+        themeAccent = $config.themeAccent
+        themeBackground = $config.themeBackground
+        themePanel = $config.themePanel
+        themeText = $config.themeText
+        themeMuted = $config.themeMuted
+        themeSecondary = $config.themeSecondary
+        numberUnitStyle = $Style
+    }
+    [IO.File]::WriteAllText($configPath, ($updated | ConvertTo-Json -Depth 6), [Text.UTF8Encoding]::new($false))
     return $updated
 }
 
@@ -196,6 +226,7 @@ function Invoke-CodexAccountSnapshot {
             summary = $usageResponse.result.summary
             dailyUsageBuckets = @($usageResponse.result.dailyUsageBuckets)
             rateLimits = if ($null -ne $rateResponse -and -not $rateResponse.error) { $rateResponse.result.rateLimits } else { $null }
+            identityRaw = $null
             error = $null
         }
     } finally {
@@ -225,6 +256,7 @@ function Get-CodexAccountSnapshot {
             summary = $null
             dailyUsageBuckets = @()
             rateLimits = $null
+            identityRaw = $null
             error = $_.Exception.Message
         }
         $script:accountSnapshotExpiresAt = [datetimeoffset]::Now.AddSeconds(30)
@@ -232,13 +264,77 @@ function Get-CodexAccountSnapshot {
     return $script:accountSnapshot
 }
 
+function Get-DeviceIdentity {
+    if ($null -ne $script:deviceIdentity) { return $script:deviceIdentity }
+    if (Test-Path -LiteralPath $identityPath) {
+        try {
+            $stored = Get-Content -LiteralPath $identityPath -Raw -Encoding UTF8 | ConvertFrom-Json
+            if ([string]$stored.deviceId -match '^[0-9a-fA-F-]{36}$') { $script:deviceIdentity = $stored }
+        } catch {}
+    }
+    if ($null -eq $script:deviceIdentity) {
+        $deviceId = [guid]::NewGuid().ToString('D')
+        $deviceHash = Get-TextSha256 ("device|$deviceId")
+        $script:deviceIdentity = [pscustomobject][ordered]@{
+            deviceId = $deviceId
+            deviceCode = ('DEV-' + $deviceHash.Substring(0, 4) + '-' + $deviceHash.Substring(4, 4) + '-' + $deviceHash.Substring(8, 4)).ToUpperInvariant()
+            name = [string]$env:COMPUTERNAME
+            platform = 'windows'
+            createdAt = [datetimeoffset]::Now.ToString('o')
+        }
+        [IO.File]::WriteAllText($identityPath, ($script:deviceIdentity | ConvertTo-Json), [Text.UTF8Encoding]::new($false))
+    }
+    return $script:deviceIdentity
+}
+
+function Get-AccountIdentity {
+    param($Account)
+    $raw = $Account.identityRaw
+    $type = if ($raw -and $raw.type) { [string]$raw.type } else { 'unknown' }
+    $plan = if ($raw -and $raw.planType) { [string]$raw.planType } elseif ($raw -and $raw.plan) { [string]$raw.plan } else { '' }
+    $email = if ($raw -and $raw.email) { ([string]$raw.email).Trim().ToLowerInvariant() } else { '' }
+    $rawId = if ($raw -and $raw.id) { [string]$raw.id } elseif ($raw -and $raw.accountId) { [string]$raw.accountId } else { $email }
+    if (-not $rawId) {
+        # Read only the stable account id metadata from auth.json; credentials are never retained
+        # in memory, cached, returned by the API, or included in an export.
+        $authPath = Join-Path $CodexHome 'auth.json'
+        if (Test-Path -LiteralPath $authPath) {
+            try {
+                $authMetadata = Get-Content -LiteralPath $authPath -Raw -Encoding UTF8 | ConvertFrom-Json
+                if ($authMetadata.tokens -and $authMetadata.tokens.account_id) { $rawId = [string]$authMetadata.tokens.account_id }
+                if ($type -eq 'unknown' -and $authMetadata.auth_mode) { $type = [string]$authMetadata.auth_mode }
+            } catch {}
+        }
+    }
+    $keySource = if ($rawId) { "$type|$rawId" } else { "$type|unidentified" }
+    $hash = Get-TextSha256 ("account|$keySource")
+    $maskedEmail = ''
+    if ($email -match '^(.)([^@]*)@(.+)$') {
+        $maskedEmail = $matches[1] + ('*' * [math]::Min(6, [math]::Max(3, $matches[2].Length))) + '@' + $matches[3]
+    }
+    [pscustomobject][ordered]@{
+        accountKey = 'acct-' + $hash.Substring(0, 24)
+        type = $type
+        plan = $plan
+        emailMasked = $maskedEmail
+        emailHash = if ($email) { Get-TextSha256 ("email|$email") } else { '' }
+    }
+}
+
 function Get-LiveAccountLifetime {
-    param($Account, [long]$ComparableTokens)
+    param($Account, [long]$ComparableTokens, [string]$AccountKey)
     if (-not $Account.available -or $null -eq $Account.summary -or $null -eq $Account.summary.lifetimeTokens) {
         return [long]0
     }
 
     $serverTokens = [long]$Account.summary.lifetimeTokens
+    if ($script:accountLiveAccountKey -ne $AccountKey) {
+        $script:accountLiveAccountKey = $AccountKey
+        $script:accountLiveSnapshotFetchedAt = ''
+        $script:accountLiveBaseTokens = $serverTokens
+        $script:accountLiveLocalBaselineTokens = $ComparableTokens
+        $script:accountLiveLifetimeTokens = $serverTokens
+    }
     $previousLiveTokens = $script:accountLiveLifetimeTokens
     $snapshotFetchedAt = [string]$Account.fetchedAt
     $snapshotChanged = $snapshotFetchedAt -ne $script:accountLiveSnapshotFetchedAt
@@ -256,6 +352,7 @@ function Get-LiveAccountLifetime {
     if ($snapshotChanged -or $script:accountLiveLifetimeTokens -ne $previousLiveTokens) {
         try {
             $state = [pscustomobject][ordered]@{
+                accountKey = $script:accountLiveAccountKey
                 snapshotFetchedAt = $script:accountLiveSnapshotFetchedAt
                 baseTokens = $script:accountLiveBaseTokens
                 localBaselineTokens = $script:accountLiveLocalBaselineTokens
@@ -327,6 +424,118 @@ function Get-TextSha256 {
     } finally { $sha.Dispose() }
 }
 
+function Merge-MaxUsageCounter {
+    param($Existing, $Current)
+    $merged = New-UsageCounter
+    foreach ($key in @($merged.Keys)) {
+        $oldValue = if ($null -ne $Existing -and $null -ne $Existing.$key) { [long]$Existing.$key } else { [long]0 }
+        $newValue = if ($null -ne $Current -and $null -ne $Current.$key) { [long]$Current.$key } else { [long]0 }
+        $merged[$key] = [long][math]::Max($oldValue, $newValue)
+    }
+    return [pscustomobject]$merged
+}
+
+function Update-HistoryCache {
+    param($Sessions, $Account, $AccountIdentity, $DeviceIdentity)
+
+    $currentDaily = @{}
+    foreach ($session in @($Sessions)) {
+        $dailyRows = @($session.dailyUsage)
+        if ($dailyRows.Count -eq 0 -and $session.localDate) {
+            $dailyRows = @([pscustomobject][ordered]@{ date = [string]$session.localDate; usage = $session.usage })
+        }
+        foreach ($row in $dailyRows) {
+            $date = [string]$row.date
+            if ($date -notmatch '^\d{4}-\d{2}-\d{2}$' -or $null -eq $row.usage) { continue }
+            if (-not $currentDaily.ContainsKey($date)) { $currentDaily[$date] = New-UsageCounter }
+            Add-Counter $currentDaily[$date] $row.usage
+        }
+    }
+
+    $existingAccounts = @()
+    if (Test-Path -LiteralPath $historyPath) {
+        try {
+            $stored = Get-Content -LiteralPath $historyPath -Raw -Encoding UTF8 | ConvertFrom-Json
+            if ([int]$stored.schemaVersion -eq 1) { $existingAccounts = @($stored.accounts) }
+        } catch {}
+    }
+
+    $accountKey = [string]$AccountIdentity.accountKey
+    $existingAccount = @($existingAccounts | Where-Object { [string]$_.account.accountKey -eq $accountKey } | Select-Object -First 1)
+    $dayMap = @{}
+    if ($existingAccount.Count) {
+        foreach ($day in @($existingAccount[0].days)) {
+            if ([string]$day.date -match '^\d{4}-\d{2}-\d{2}$') { $dayMap[[string]$day.date] = $day }
+        }
+    }
+
+    $now = [datetimeoffset]::Now
+    $todayKey = $now.ToLocalTime().ToString('yyyy-MM-dd')
+    foreach ($date in @($currentDaily.Keys)) {
+        $existing = $dayMap[$date]
+        $dayMap[$date] = [pscustomobject][ordered]@{
+            date = $date
+            accountTokens = if ($null -ne $existing) { [long]$existing.accountTokens } else { [long]0 }
+            localUsage = Merge-MaxUsageCounter $(if ($null -ne $existing) { $existing.localUsage } else { $null }) ([pscustomobject]$currentDaily[$date])
+            complete = $date -lt $todayKey
+            updatedAt = $now.ToString('o')
+        }
+    }
+
+    foreach ($bucket in @($Account.dailyUsageBuckets)) {
+        $date = [string]$bucket.startDate
+        if ($date -notmatch '^\d{4}-\d{2}-\d{2}$') { continue }
+        $existing = $dayMap[$date]
+        $dayMap[$date] = [pscustomobject][ordered]@{
+            date = $date
+            accountTokens = [long][math]::Max($(if ($null -ne $existing) { [long]$existing.accountTokens } else { [long]0 }), [long]$bucket.tokens)
+            localUsage = if ($null -ne $existing) { $existing.localUsage } else { [pscustomobject](New-UsageCounter) }
+            complete = $date -lt $todayKey
+            updatedAt = $now.ToString('o')
+        }
+    }
+
+    $deviceMap = @{}
+    if ($existingAccount.Count) {
+        foreach ($device in @($existingAccount[0].devices)) {
+            if ($device.deviceId) { $deviceMap[[string]$device.deviceId] = $device }
+        }
+    }
+    $deviceMap[[string]$DeviceIdentity.deviceId] = [pscustomobject][ordered]@{
+        deviceId = $DeviceIdentity.deviceId
+        deviceCode = $DeviceIdentity.deviceCode
+        name = $DeviceIdentity.name
+        platform = $DeviceIdentity.platform
+        lastSeenAt = $now.ToString('o')
+    }
+
+    $days = @($dayMap.Keys | Sort-Object | ForEach-Object { $dayMap[$_] })
+    $accountRecord = [pscustomobject][ordered]@{
+        account = $AccountIdentity
+        devices = @($deviceMap.Values | Sort-Object deviceCode)
+        firstDate = if ($days.Count) { [string]$days[0].date } else { '' }
+        lastDate = if ($days.Count) { [string]$days[-1].date } else { '' }
+        days = $days
+        updatedAt = $now.ToString('o')
+    }
+    $accounts = @($existingAccounts | Where-Object { [string]$_.account.accountKey -ne $accountKey }) + @($accountRecord)
+    $store = [pscustomobject][ordered]@{
+        kind = 'codex-token-meter-history-cache'
+        schemaVersion = 1
+        updatedAt = $now.ToString('o')
+        accounts = $accounts
+    }
+    [IO.File]::WriteAllText($historyPath, ($store | ConvertTo-Json -Depth 12), [Text.UTF8Encoding]::new($false))
+    return [pscustomobject][ordered]@{
+        account = $AccountIdentity
+        device = $DeviceIdentity
+        firstDate = $accountRecord.firstDate
+        lastDate = $accountRecord.lastDate
+        days = $days
+        updatedAt = $accountRecord.updatedAt
+    }
+}
+
 function ConvertTo-PortableSessionCore {
     param($Session)
     $comparable = if ($null -ne $Session.accountComparable) { [bool]$Session.accountComparable } else { $Session.source -ne 'manual' }
@@ -363,6 +572,10 @@ function Get-ThreadNames {
     if (Test-Path -LiteralPath $sessionIndexPath) { $indexFiles += Get-Item -LiteralPath $sessionIndexPath }
     $importedIndexes = Join-Path $importsRoot 'session-indexes'
     if (Test-Path -LiteralPath $importedIndexes) { $indexFiles += Get-ChildItem -LiteralPath $importedIndexes -Filter '*.jsonl' -File }
+    if (Test-Path -LiteralPath $importedDevicesRoot) {
+        $indexFiles += Get-ChildItem -LiteralPath $importedDevicesRoot -Recurse -Filter '*.jsonl' -File |
+            Where-Object { $_.Directory.Name -eq 'session-indexes' }
+    }
 
     $signature = @($indexFiles | Sort-Object FullName | ForEach-Object { "$($_.FullName)|$($_.Length)|$($_.LastWriteTimeUtc.Ticks)" }) -join "`n"
     if ($null -ne $script:threadNameCache -and $script:threadNameCache.signature -eq $signature) {
@@ -392,6 +605,19 @@ function Get-SessionCandidates {
     }
     if (Test-Path -LiteralPath $importedSessionsRoot) {
         [void]$roots.Add([pscustomobject]@{ path = $importedSessionsRoot; source = 'imported'; label = 'Imported devices' })
+    }
+    if (Test-Path -LiteralPath $importedDevicesRoot) {
+        foreach ($deviceDirectory in @(Get-ChildItem -LiteralPath $importedDevicesRoot -Directory -ErrorAction SilentlyContinue)) {
+            $deviceSessions = Join-Path $deviceDirectory.FullName 'sessions'
+            if (Test-Path -LiteralPath $deviceSessions) {
+                $deviceCode = [string]$deviceDirectory.Name
+                [void]$roots.Add([pscustomobject]@{
+                    path = $deviceSessions
+                    source = 'device:' + $deviceCode
+                    label = 'Other device · ' + $deviceCode
+                })
+            }
+        }
     }
     $config = Get-MeterConfig
     foreach ($extraRoot in @($config.additionalSessionRoots)) {
@@ -723,7 +949,15 @@ function Get-CodexUsage {
         }
     }
 
-    foreach ($bundleFile in @(Get-ChildItem -LiteralPath $bundlesRoot -Filter '*.json' -File -ErrorAction SilentlyContinue)) {
+    $bundleFiles = @()
+    if (Test-Path -LiteralPath $bundlesRoot) {
+        $bundleFiles += Get-ChildItem -LiteralPath $bundlesRoot -Filter '*.json' -File -ErrorAction SilentlyContinue
+    }
+    if (Test-Path -LiteralPath $importedDevicesRoot) {
+        $bundleFiles += Get-ChildItem -LiteralPath $importedDevicesRoot -Recurse -Filter '*.json' -File -ErrorAction SilentlyContinue |
+            Where-Object { $_.Directory.Name -eq 'bundles' }
+    }
+    foreach ($bundleFile in @($bundleFiles)) {
         try {
             $bundle = Get-Content -LiteralPath $bundleFile.FullName -Raw -Encoding UTF8 | ConvertFrom-Json
             if ($bundle.kind -ne 'codex-token-meter-export' -or [int]$bundle.schemaVersion -ne 1) { throw 'Unsupported export format.' }
@@ -810,8 +1044,11 @@ function Get-CodexUsage {
     }
 
     $account = Get-CodexAccountSnapshot
+    $deviceIdentity = Get-DeviceIdentity
+    $accountIdentity = Get-AccountIdentity $account
+    $account | Add-Member -NotePropertyName identity -NotePropertyValue $accountIdentity -Force
     $serverLifetimeTokens = if ($account.available -and $null -ne $account.summary.lifetimeTokens) { [long]$account.summary.lifetimeTokens } else { [long]0 }
-    $lifetimeTokens = Get-LiveAccountLifetime $account $comparableTokens
+    $lifetimeTokens = Get-LiveAccountLifetime $account $comparableTokens $accountIdentity.accountKey
     if ($account.available) {
         $account | Add-Member -NotePropertyName serverLifetimeTokens -NotePropertyValue $serverLifetimeTokens -Force
         $account | Add-Member -NotePropertyName liveLifetimeTokens -NotePropertyValue $lifetimeTokens -Force
@@ -841,6 +1078,7 @@ function Get-CodexUsage {
 
     $unattributedTokens = if ($lifetimeTokens -gt 0) { [math]::Max(0, $lifetimeTokens - $comparableTokens) } else { [long]0 }
     $coveragePercent = if ($lifetimeTokens -gt 0) { [math]::Min([double]100.0, [double]$comparableTokens * 100.0 / [double]$lifetimeTokens) } else { $null }
+    $history = Update-HistoryCache $sessions $account $accountIdentity $deviceIdentity
 
     [pscustomobject][ordered]@{
         generatedAt = [datetimeoffset]::Now.ToString('o')
@@ -862,6 +1100,8 @@ function Get-CodexUsage {
         sessions = @($sessions | Sort-Object -Property @{ Expression = { $_.startedAt }; Descending = $true })
         rateLimit = $rateLimitView
         account = $account
+        identity = [pscustomobject][ordered]@{ account = $accountIdentity; device = $deviceIdentity }
+        history = $history
         coverage = [pscustomobject][ordered]@{
             accountLifetimeTokens = $lifetimeTokens
             locallyAttributableTokens = $comparableTokens
@@ -889,8 +1129,10 @@ function New-PortableJsonExport {
         schemaVersion = 1
         exportId = [guid]::NewGuid().ToString('D')
         exportedAt = $exportedAt.ToString('o')
-        suggestedFileName = 'codex-meter-' + $env:COMPUTERNAME.ToLowerInvariant() + '-' + $exportedAt.ToString('yyyyMMdd-HHmmss') + '.json'
-        device = [pscustomobject][ordered]@{ name = $env:COMPUTERNAME; platform = 'windows' }
+        suggestedFileName = 'codex-meter-' + ([string]$Usage.identity.device.deviceCode).ToLowerInvariant() + '-' + $exportedAt.ToString('yyyyMMdd-HHmmss') + '.json'
+        identity = $Usage.identity
+        device = $Usage.identity.device
+        account = $Usage.identity.account
         accountSnapshot = [pscustomobject][ordered]@{
             fetchedAt = $Usage.account.fetchedAt
             summary = $Usage.account.summary
@@ -899,6 +1141,56 @@ function New-PortableJsonExport {
         sessionCount = $portableSessions.Count
         sessionsHash = Get-TextSha256 $hashList
         sessions = @($portableSessions)
+    }
+}
+
+function New-HistorySummaryExport {
+    param($Usage)
+    $exportedAt = [datetimeoffset]::Now
+    $days = @($Usage.history.days | Sort-Object date | ForEach-Object {
+        [pscustomobject][ordered]@{
+            date = [string]$_.date
+            accountTokens = [long]$_.accountTokens
+            localUsage = $_.localUsage
+            complete = [bool]$_.complete
+        }
+    })
+    $localTotal = New-UsageCounter
+    $accountDailyTotal = [long]0
+    foreach ($day in $days) {
+        Add-Counter $localTotal $day.localUsage
+        $accountDailyTotal += [long]$day.accountTokens
+    }
+    $canonical = [pscustomobject][ordered]@{
+        accountKey = [string]$Usage.identity.account.accountKey
+        deviceId = [string]$Usage.identity.device.deviceId
+        days = $days
+    } | ConvertTo-Json -Depth 10 -Compress
+    [pscustomobject][ordered]@{
+        kind = 'codex-token-meter-history-summary'
+        schemaVersion = 1
+        exportId = [guid]::NewGuid().ToString('D')
+        exportedAt = $exportedAt.ToString('o')
+        suggestedFileName = 'codex-meter-history-' + ([string]$Usage.identity.account.accountKey).Substring(0, 13) + '-' + ([string]$Usage.identity.device.deviceCode).ToLowerInvariant() + '-' + $exportedAt.ToString('yyyyMMdd-HHmmss') + '.json'
+        identity = $Usage.identity
+        range = [pscustomobject][ordered]@{
+            firstDate = [string]$Usage.history.firstDate
+            lastDate = [string]$Usage.history.lastDate
+            dayCount = $days.Count
+        }
+        totals = [pscustomobject][ordered]@{
+            accountDailyTokens = $accountDailyTotal
+            accountLifetimeTokens = [long]$Usage.coverage.accountLifetimeTokens
+            localUsage = [pscustomobject]$localTotal
+        }
+        days = $days
+        historyHash = Get-TextSha256 $canonical
+        privacy = [pscustomobject][ordered]@{
+            containsTaskDetails = $false
+            containsPrompts = $false
+            containsFilePaths = $false
+            containsOAuthCredentials = $false
+        }
     }
 }
 
@@ -1001,9 +1293,23 @@ try {
                 Write-HttpResponse $stream 200 'application/json; charset=utf-8' ([Text.Encoding]::UTF8.GetBytes($json))
                 continue
             }
+            if ($path -eq '/api/settings/units') {
+                $match = [regex]::Match($requestUri.Query, '(?:^|[?&])style=([^&]+)')
+                if (-not $match.Success) { throw 'Missing number unit style.' }
+                $style = [Uri]::UnescapeDataString($match.Groups[1].Value)
+                $json = Set-MeterUnitStyle $style | ConvertTo-Json -Compress
+                Write-HttpResponse $stream 200 'application/json; charset=utf-8' ([Text.Encoding]::UTF8.GetBytes($json))
+                continue
+            }
             if ($path -eq '/api/export') {
                 $usage = Get-CodexUsage
                 $json = New-PortableJsonExport $usage | ConvertTo-Json -Depth 16
+                Write-HttpResponse $stream 200 'application/json; charset=utf-8' ([Text.Encoding]::UTF8.GetBytes($json))
+                continue
+            }
+            if ($path -eq '/api/export/history') {
+                $usage = Get-CodexUsage
+                $json = New-HistorySummaryExport $usage | ConvertTo-Json -Depth 14
                 Write-HttpResponse $stream 200 'application/json; charset=utf-8' ([Text.Encoding]::UTF8.GetBytes($json))
                 continue
             }

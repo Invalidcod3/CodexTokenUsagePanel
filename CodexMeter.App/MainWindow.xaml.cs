@@ -31,11 +31,13 @@ public partial class MainWindow : Window
     private readonly Dictionary<TextBlock, int> _metricAnimationVersions = [];
     private SolidColorBrush _accentBrush = new(System.Windows.Media.Color.FromRgb(184, 255, 52));
     private SolidColorBrush _accentForegroundBrush = new(System.Windows.Media.Color.FromRgb(10, 13, 11));
+    private string _numberUnitStyle = "international";
 
     public MainWindow(BackendService backend, ImageSource? brandImage)
     {
         InitializeComponent();
         _backend = backend;
+        Icon = brandImage;
         BrandIcon.Source = brandImage;
         PopulatePeriods();
         _refreshTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(30) };
@@ -184,6 +186,8 @@ public partial class MainWindow : Window
             ? Math.Min(100, comparableUsage.TotalTokens * 100d / accountTotal)
             : (double?)null;
 
+        SetRollingMetric(ExactLiveLifetime, accountAvailable ? accountTotal.ToString("N0", CultureInfo.GetCultureInfo("zh-CN")) : "—");
+
         var localPeriodFallback = period.Key != "all" && !accountHasPeriod;
         AccountScopeLabel.Text = period.Key == "all"
             ? "CHATGPT ACCOUNT · LIFETIME"
@@ -241,6 +245,7 @@ public partial class MainWindow : Window
     private void UpdateRefreshInterval(JsonElement root)
     {
         if (!TryGet(root, "settings", out var settings)) return;
+        _numberUnitStyle = GetString(settings, "numberUnitStyle") == "chinese" ? "chinese" : "international";
         var seconds = GetDouble(settings, "refreshIntervalSeconds");
         if (seconds <= 0) return;
         _refreshTimer.Interval = TimeSpan.FromSeconds(Math.Clamp(seconds, 0.5, 3600));
@@ -374,8 +379,8 @@ public partial class MainWindow : Window
     {
         var cleaned = Regex.Replace(value, "[^0-9.\\-]", string.Empty);
         if (!double.TryParse(cleaned, NumberStyles.Float, CultureInfo.InvariantCulture, out var number)) return null;
-        var suffix = Regex.Match(value, "([KMB])\\b", RegexOptions.IgnoreCase).Groups[1].Value.ToUpperInvariant();
-        return number * (suffix switch { "K" => 1e3, "M" => 1e6, "B" => 1e9, _ => 1 });
+        var suffix = Regex.Match(value, "([KMGTEP])\\b", RegexOptions.IgnoreCase).Groups[1].Value.ToUpperInvariant();
+        return number * (suffix switch { "K" => 1e3, "M" => 1e6, "G" => 1e9, "T" => 1e12, "P" => 1e15, "E" => 1e18, _ => 1 });
     }
 
     private static string ScopeRange(PeriodOption period)
@@ -580,14 +585,16 @@ public partial class MainWindow : Window
         return key is null ? new Price(0, 0, 0, false) : prices[key];
     }
 
-    private static string FormatCompact(long value, int digits)
+    private string FormatCompact(long value, int digits)
     {
         var absolute = Math.Abs((double)value);
-        if (absolute < 1_000) return value.ToString("N0", CultureInfo.GetCultureInfo("zh-CN"));
-        var format = "F" + digits;
-        if (absolute < 1_000_000) return (value / 1_000d).ToString(format, CultureInfo.InvariantCulture) + "K";
-        if (absolute < 1_000_000_000) return (value / 1_000_000d).ToString(format, CultureInfo.InvariantCulture) + "M";
-        return (value / 1_000_000_000d).ToString(format, CultureInfo.InvariantCulture) + "B";
+        if (absolute <= 9_999) return value.ToString("N0", CultureInfo.GetCultureInfo("zh-CN"));
+        var format = digits > 0 ? "0." + new string('#', digits) : "0";
+        (double Scale, string Suffix)[] units = _numberUnitStyle == "chinese"
+            ? [(1e24, "亿亿亿"), (1e20, "万亿亿"), (1e16, "亿亿"), (1e12, "万亿"), (1e8, "亿"), (1e4, "万")]
+            : [(1e18, "E"), (1e15, "P"), (1e12, "T"), (1e9, "G"), (1e6, "M"), (1e3, "K")];
+        var unit = units.First(item => absolute >= item.Scale);
+        return (value / unit.Scale).ToString(format, CultureInfo.InvariantCulture) + unit.Suffix;
     }
 
     private static IEnumerable<JsonElement> GetItems(JsonElement parent, string name)
@@ -675,6 +682,7 @@ public partial class MainWindow : Window
     private void CloseButton_Click(object sender, RoutedEventArgs e) => Hide();
     private void DashboardButton_Click(object sender, RoutedEventArgs e) => ((App)System.Windows.Application.Current).OpenDashboard();
     private void RefreshButton_Click(object sender, RoutedEventArgs e) => RefreshData();
+    private void ExactUsageButton_Click(object sender, RoutedEventArgs e) => ExactUsagePopup.IsOpen = !ExactUsagePopup.IsOpen;
 
     private void SelectPeriod(string key)
     {

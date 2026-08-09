@@ -103,12 +103,22 @@ public partial class App : System.Windows.Application
 
     private void LoadBrandAssets()
     {
-        var iconPath = BrandIconResolver.FindOfficialIcon();
-        if (iconPath is null) return;
         try
         {
-            _trayIcon = new Icon(iconPath);
-            using var icon = new Icon(iconPath, 64, 64);
+            var resource = GetResourceStream(new Uri("pack://application:,,,/Assets/OpenAI.ico"));
+            if (resource?.Stream is not null)
+            {
+                using var embedded = new Icon(resource.Stream);
+                _trayIcon = (Icon)embedded.Clone();
+            }
+            else
+            {
+                var iconPath = BrandIconResolver.FindOfficialIcon();
+                if (iconPath is not null) _trayIcon = new Icon(iconPath);
+            }
+            _trayIcon ??= Icon.ExtractAssociatedIcon(Environment.ProcessPath!);
+            if (_trayIcon is null) return;
+            using var icon = new Icon(_trayIcon, 64, 64);
             _brandImage = System.Windows.Interop.Imaging.CreateBitmapSourceFromHIcon(
                 icon.Handle, Int32Rect.Empty, BitmapSizeOptions.FromWidthAndHeight(64, 64));
             _brandImage.Freeze();
@@ -119,6 +129,11 @@ public partial class App : System.Windows.Application
     public void ShowMain()
     {
         if (_mainWindow is null) return;
+        if (_tray is not null && _trayIcon is not null)
+        {
+            _tray.Icon = _trayIcon;
+            _tray.Visible = true;
+        }
         _mainWindow.Show();
         _mainWindow.WindowState = WindowState.Normal;
         _mainWindow.PositionBottomRight();

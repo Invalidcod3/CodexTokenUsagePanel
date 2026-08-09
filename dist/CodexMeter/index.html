@@ -20,6 +20,9 @@
         <button id="exportButton" class="icon-button" type="button" title="导出多设备 JSON 数据包" aria-label="导出多设备 JSON 数据包">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4m0 0 4 4m-4-4-4 4M5 20h14"/></svg>
         </button>
+        <button id="historyExportButton" class="icon-button" type="button" title="导出匿名历史汇总" aria-label="导出匿名历史汇总">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V9m5 10V5m5 14v-7m5 7V3M3 19h18"/></svg>
+        </button>
         <button id="refreshButton" class="icon-button" type="button" title="刷新数据" aria-label="刷新数据">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.34 5.66M20 4v7h-7"/></svg>
         </button>
@@ -66,7 +69,7 @@
 
     <section class="account-ledger">
       <article class="account-total">
-        <div class="account-title"><span class="section-kicker">CHATGPT ACCOUNT · LIFETIME</span><span id="accountSync" class="account-sync">正在连接账户</span></div>
+        <div class="account-title"><span class="section-kicker">CHATGPT ACCOUNT · LIFETIME</span><span class="account-title-actions"><span id="accountSync" class="account-sync">正在连接账户</span><button id="accountExactButton" class="info-dot" type="button" title="查看精确 Token 总量" aria-label="查看精确 Token 总量">i</button></span></div>
         <strong id="accountLifetime">—</strong>
         <small>OpenAI 账户端权威总量</small>
         <div class="account-projection"><span>按可归因日志结构外推 API 等价费用</span><b id="accountProjectedCost">—</b><em>仅为情景估算，并非账单</em></div>
@@ -87,7 +90,7 @@
         <div class="kpi-foot"><span id="sessionCount">0 个任务</span><span id="dateRange">—</span></div>
       </article>
       <article class="kpi-card cost-card">
-        <div class="kpi-label"><span>本机明细 API 等价开销</span><button class="info-dot" data-tooltip="只对有模型、输入、缓存和输出明细的本地日志估算；未归因账户 Token 不计入费用。">i</button></div>
+        <div class="kpi-label"><span>本机明细 API 等价开销</span></div>
         <div class="kpi-value money" id="costUsd">—</div>
         <div class="kpi-foot"><span id="costCny">约 ¥—</span><span id="priceDate">单价：2026-08-04</span></div>
       </article>
@@ -166,6 +169,7 @@
       <label class="toggle-row"><span><b>启用人民币换算</b><small>关闭后只显示美元 API 等价费用</small></span><input id="currencyConversionToggle" type="checkbox"><i></i></label>
       <label class="toggle-row"><span><b>计入长上下文加价</b><small>单次输入超过 272K：输入 ×2、输出 ×1.5</small></span><input id="longContextToggle" type="checkbox"><i></i></label>
       <label class="field refresh-field"><span><b>自动刷新间隔</b><small>小组件与 Token 明细共用，支持小数</small></span><span class="unit-input"><input id="refreshInterval" type="number" min="0.5" max="3600" step="0.1"><em>秒</em></span></label>
+      <label class="field unit-style-field"><span><b>Token 数值单位</b><small>五位数起折叠；国际单位为默认显示</small></span><select id="numberUnitStyle"><option value="international">国际 · K / M / G / T</option><option value="chinese">中文 · 万 / 亿 / 万亿</option></select></label>
       <section class="theme-customizer" aria-labelledby="themeTitle">
         <div class="theme-head"><div><b id="themeTitle">界面配色</b><small>使用 HLS 选色板调整强调色与背景色</small></div><button id="resetTheme" type="button" class="secondary-button">恢复默认</button></div>
         <div class="theme-targets">
@@ -187,6 +191,13 @@
       <div id="priceRows" class="price-rows"></div>
       <div class="dialog-actions"><button id="resetPrices" type="button" class="secondary-button">恢复官方单价</button><button id="saveSettings" value="default" class="primary-button">保存设置</button></div>
     </form>
+  </dialog>
+
+  <dialog id="exactUsageDialog" class="exact-usage-dialog">
+    <div class="dialog-card">
+      <div class="dialog-head"><div><span class="section-kicker">EXACT ACCOUNT TOTAL</span><h2>全局 Token 精确用量</h2></div><button class="close-button" data-close-exact aria-label="关闭">×</button></div>
+      <div class="exact-counter"><span>ACCOUNT LIFETIME TOKEN</span><b id="exactLiveLifetime">—</b><small>实时累计 · 精确到个位</small></div>
+    </div>
   </dialog>
 
   <dialog id="importDialog">

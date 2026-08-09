@@ -27,7 +27,20 @@
       <ScrollViewer Grid.Row="1" Margin="0,18,0,0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
         <StackPanel Margin="0,0,5,0">
           <Border x:Name="AccountCard" Padding="18" CornerRadius="12" BorderBrush="#33452E" BorderThickness="1" Background="#131A16">
-            <StackPanel><TextBlock x:Name="AccountScopeLabel" Text="CHATGPT ACCOUNT · LIFETIME" Foreground="#9AA49F" FontSize="9"/><TextBlock x:Name="AccountTotal" Text="正在同步…" Margin="0,11,0,4" FontFamily="Consolas" FontSize="38" FontWeight="Bold"/><TextBlock x:Name="AccountState" Text="读取账户数据" Foreground="#B8FF34" FontSize="9"/></StackPanel>
+            <Grid>
+              <StackPanel><TextBlock x:Name="AccountScopeLabel" Text="CHATGPT ACCOUNT · LIFETIME" Foreground="#9AA49F" FontSize="9"/><TextBlock x:Name="AccountTotal" Text="正在同步…" Margin="0,11,0,4" FontFamily="Consolas" FontSize="38" FontWeight="Bold"/><TextBlock x:Name="AccountState" Text="读取账户数据" Foreground="#B8FF34" FontSize="9"/></StackPanel>
+              <Button x:Name="ExactUsageButton" Content="i" Width="22" Height="22" Padding="0" HorizontalAlignment="Right" VerticalAlignment="Top" Background="#171D1E" Foreground="#9DA6A2" BorderBrush="#46504C" BorderThickness="1" FontFamily="Consolas" FontSize="10" ToolTip="查看精确 Token 总量" Click="ExactUsageButton_Click"/>
+              <Popup x:Name="ExactUsagePopup" PlacementTarget="{Binding ElementName=ExactUsageButton}" Placement="Bottom" HorizontalOffset="-286" VerticalOffset="8" AllowsTransparency="True" StaysOpen="False" PopupAnimation="Fade">
+                <Border Width="340" Padding="18" CornerRadius="12" Background="#151A1B" BorderBrush="#3B4642" BorderThickness="1">
+                  <StackPanel>
+                    <TextBlock Text="全局 TOKEN 精确用量" Foreground="#F2F5F3" FontSize="11" FontWeight="SemiBold"/>
+                    <Border Margin="0,12,0,0" Padding="18,28" Background="#101516" CornerRadius="10" BorderBrush="#33452E" BorderThickness="1">
+                      <StackPanel><TextBlock Text="ACCOUNT LIFETIME TOKEN" HorizontalAlignment="Center" Foreground="#77817D" FontFamily="Consolas" FontSize="8"/><TextBlock x:Name="ExactLiveLifetime" Text="—" Margin="0,15,0,0" HorizontalAlignment="Center" Foreground="#B8FF34" FontFamily="Consolas" FontSize="28" FontWeight="Bold" TextWrapping="Wrap" TextAlignment="Center"/><TextBlock Text="实时累计 · 精确到个位" Margin="0,13,0,0" HorizontalAlignment="Center" Foreground="#68726E" FontSize="8"/></StackPanel>
+                    </Border>
+                  </StackPanel>
+                </Border>
+              </Popup>
+            </Grid>
           </Border>
 
           <Grid Margin="0,8,0,0">

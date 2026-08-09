@@ -55,7 +55,14 @@ $requiredFiles = @(
     'app.js',
     'styles.css',
     'meter.config.json',
-    'imports\manual-usage.json'
+    'imports\manual-usage.json',
+    'imports\devices\README.txt'
+)
+$privateRuntimeFiles = @(
+    'meter.account-cache.json',
+    'meter.scan-cache.json',
+    'meter.identity.json',
+    'meter.history.json'
 )
 
 try {
@@ -83,7 +90,7 @@ try {
     [void](New-Item -ItemType Directory -Path $importsDirectory -Force)
     Copy-Item -LiteralPath (Join-Path $projectRoot 'imports\manual-usage.json') -Destination (Join-Path $importsDirectory 'manual-usage.json') -Force
 
-    foreach ($privateName in @('meter.account-cache.json', 'meter.scan-cache.json')) {
+    foreach ($privateName in $privateRuntimeFiles) {
         $privatePath = Join-Path $packageDirectory $privateName
         if (Test-Path -LiteralPath $privatePath) { Remove-Item -LiteralPath $privatePath -Force }
     }
@@ -119,8 +126,9 @@ PRIVACY
             throw "Distribution is missing required file: $relativePath"
         }
     }
-    if (Get-ChildItem -LiteralPath $packageDirectory -Recurse -File | Where-Object { $_.Name -eq 'meter.account-cache.json' }) {
-        throw 'Distribution unexpectedly contains an account cache.'
+    $packagedPrivateFiles = @(Get-ChildItem -LiteralPath $packageDirectory -Recurse -File | Where-Object { $_.Name -in $privateRuntimeFiles })
+    if ($packagedPrivateFiles.Count -gt 0) {
+        throw "Distribution unexpectedly contains private runtime data: $($packagedPrivateFiles.Name -join ', ')"
     }
 
     [void](New-Item -ItemType Directory -Path $releaseRoot -Force)
@@ -143,8 +151,9 @@ PRIVACY
             $expected = "$packageName\$relativePath"
             if ($entryNames -notcontains $expected) { throw "ZIP validation failed: $relativePath" }
         }
-        if ($entryNames | Where-Object { $_ -like '*meter.account-cache.json' }) {
-            throw 'ZIP validation failed: account cache is present.'
+        $privateEntries = @($entryNames | Where-Object { [IO.Path]::GetFileName($_) -in $privateRuntimeFiles })
+        if ($privateEntries.Count -gt 0) {
+            throw "ZIP validation failed: private runtime data is present: $($privateEntries -join ', ')"
         }
     } finally {
         $zip.Dispose()

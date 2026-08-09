@@ -8,5 +8,6 @@
     "themePanel":  "#131619",
     "themeText":  "#F3F6F4",
     "themeMuted":  "#8A9290",
-    "themeSecondary":  "#9D84EF"
+    "themeSecondary":  "#9D84EF",
+    "numberUnitStyle":  "international"
 }

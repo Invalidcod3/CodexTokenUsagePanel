@@ -15,6 +15,9 @@
     <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4129.50" />
   </ItemGroup>
   <ItemGroup>
+    <Resource Include="Assets\OpenAI.ico" />
+  </ItemGroup>
+  <ItemGroup>
     <Content Include="..\Start-CodexMeter.ps1" Link="Start-CodexMeter.ps1" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="..\Import-CodexUsage.ps1" Link="Import-CodexUsage.ps1" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="..\index.html" Link="index.html" CopyToOutputDirectory="PreserveNewest" />
@@ -22,5 +25,6 @@
     <Content Include="..\styles.css" Link="styles.css" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="..\meter.config.json" Link="meter.config.json" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="..\imports\manual-usage.json" Link="imports\manual-usage.json" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="..\imports\devices\README.txt" Link="imports\devices\README.txt" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

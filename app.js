@@ -24,6 +24,7 @@ const DEFAULT_SETTINGS = {
   themeText: '#F3F6F4',
   themeMuted: '#8A9290',
   themeSecondary: '#9D84EF',
+  numberUnitStyle: 'international',
   longContext: true,
   prices: {}
 };
@@ -57,7 +58,7 @@ const FLIP_METRIC_IDS = [
   'accountLifetime', 'accountLocal', 'accountUnattributed', 'accountCoverage', 'accountPeak', 'accountProjectedCost',
   'totalTokens', 'costUsd', 'costCny', 'savedUsd', 'limitUsed', 'uncachedTokens', 'cachedTokens',
   'outputTokens', 'reasoningTokens', 'cacheCenter', 'widgetTotal', 'widgetCostUsd', 'widgetCostCny',
-  'widgetCache', 'widgetSources', 'widgetLimit'
+  'widgetCache', 'widgetSources', 'widgetLimit', 'exactLiveLifetime'
 ];
 
 function animateChangedMetrics() {
@@ -145,8 +146,8 @@ function finalizeAllRollingMetrics() {
 function parseMetricNumber(value) {
   const number = Number(String(value).replace(/[^\d.-]/g, ''));
   if (!Number.isFinite(number)) return NaN;
-  const suffix = String(value).match(/([KMB万亿])/i)?.[1]?.toUpperCase();
-  return number * ({ K: 1e3, M: 1e6, B: 1e9, 万: 1e4, 亿: 1e8 }[suffix] || 1);
+  const suffix = String(value).match(/([KMGTEP万亿])/i)?.[1]?.toUpperCase();
+  return number * ({ K: 1e3, M: 1e6, G: 1e9, T: 1e12, P: 1e15, E: 1e18, 万: 1e4, 亿: 1e8 }[suffix] || 1);
 }
 
 function loadSettings() {
@@ -165,6 +166,7 @@ function loadSettings() {
       themeText: normalizeHex(saved.themeText, DEFAULT_SETTINGS.themeText),
       themeMuted: normalizeHex(saved.themeMuted, DEFAULT_SETTINGS.themeMuted),
       themeSecondary: normalizeHex(saved.themeSecondary, DEFAULT_SETTINGS.themeSecondary),
+      numberUnitStyle: saved.numberUnitStyle === 'chinese' ? 'chinese' : 'international',
       longContext: saved.longContext !== false,
       prices: saved.prices && typeof saved.prices === 'object' ? saved.prices : {}
     };
@@ -390,8 +392,13 @@ function aggregateSelected(sessions) {
 
 function formatCompact(value, digits = 1) {
   const number = Number(value || 0);
-  if (number < 1000) return number.toLocaleString('zh-CN');
-  return new Intl.NumberFormat('zh-CN', { notation: 'compact', maximumFractionDigits: digits }).format(number);
+  const absolute = Math.abs(number);
+  if (absolute <= 9999) return Math.round(number).toLocaleString('zh-CN');
+  const units = settings.numberUnitStyle === 'chinese'
+    ? [[1e24, '亿亿亿'], [1e20, '万亿亿'], [1e16, '亿亿'], [1e12, '万亿'], [1e8, '亿'], [1e4, '万']]
+    : [[1e18, 'E'], [1e15, 'P'], [1e12, 'T'], [1e9, 'G'], [1e6, 'M'], [1e3, 'K']];
+  const [scale, suffix] = units.find(([threshold]) => absolute >= threshold) || units.at(-1);
+  return `${(number / scale).toLocaleString('zh-CN', { maximumFractionDigits: digits })}${suffix}`;
 }
 
 function formatFull(value) {
@@ -442,6 +449,7 @@ async function fetchUsage() {
       settings.themeText = normalizeHex(rawData.settings.themeText, settings.themeText);
       settings.themeMuted = normalizeHex(rawData.settings.themeMuted, settings.themeMuted);
       settings.themeSecondary = normalizeHex(rawData.settings.themeSecondary, settings.themeSecondary);
+      settings.numberUnitStyle = rawData.settings.numberUnitStyle === 'chinese' ? 'chinese' : 'international';
       applyTheme();
       saveSettings();
     }
@@ -546,12 +554,22 @@ function renderAccountLedger() {
     ? comparableCost * liveLifetime / Number(coverage.locallyAttributableTokens)
     : null;
   $('#accountProjectedCost').textContent = projectedCost == null ? '—' : formatUsd(projectedCost);
-  const buckets = asArray(account?.dailyUsageBuckets).filter(item => item?.startDate);
+  const bucketMap = new Map();
+  for (const day of asArray(rawData.history?.days)) {
+    if (day?.date && Number(day.accountTokens || 0) > 0) bucketMap.set(day.date, { startDate: day.date, tokens: Number(day.accountTokens) });
+  }
+  for (const item of asArray(account?.dailyUsageBuckets).filter(item => item?.startDate)) {
+    const existing = bucketMap.get(item.startDate);
+    bucketMap.set(item.startDate, { startDate: item.startDate, tokens: Math.max(Number(existing?.tokens || 0), Number(item.tokens || 0)) });
+  }
+  const buckets = [...bucketMap.values()].sort((a, b) => a.startDate.localeCompare(b.startDate));
   $('#accountDays').textContent = buckets.length ? `${buckets.length} 个有用量日期` : '账户每日桶不可用';
   $('#accountSync').textContent = available
     ? `账户已同步 · ${new Date(account.fetchedAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}`
     : `仅本机 · ${account?.error || '账户接口不可用'}`;
   $('#accountSync').classList.toggle('error', !available);
+
+  $('#exactLiveLifetime').textContent = formatFull(liveLifetime);
 
   const recent = buckets.slice(-14);
   const max = Math.max(1, ...recent.map(item => Number(item.tokens || 0)));
@@ -643,15 +661,23 @@ function renderSessions() {
 
 function buildDailyData(sessions) {
   const map = new Map();
+  for (const day of asArray(rawData?.history?.days)) {
+    if (!day?.date || !day?.localUsage) continue;
+    const cached = emptyUsage();
+    addUsage(cached, day.localUsage);
+    map.set(day.date, cached);
+  }
+  const currentMap = new Map();
   for (const session of sessions) {
     const daily = asArray(session.dailyUsage);
     const rows = daily.length ? daily : session.localDate ? [{ date: session.localDate, usage: session.usage }] : [];
     for (const row of rows) {
       if (!row?.date) continue;
-      if (!map.has(row.date)) map.set(row.date, emptyUsage());
-      addUsage(map.get(row.date), row.usage);
+      if (!currentMap.has(row.date)) currentMap.set(row.date, emptyUsage());
+      addUsage(currentMap.get(row.date), row.usage);
     }
   }
+  for (const [date, usage] of currentMap) map.set(date, usage);
   if (!map.size) return [];
 
   let first;
@@ -771,6 +797,7 @@ function populatePriceRows() {
   $('#exchangeRate').value = settings.exchangeRate;
   $('#currencyConversionToggle').checked = settings.currencyConversion;
   $('#refreshInterval').value = settings.refreshIntervalSeconds;
+  $('#numberUnitStyle').value = settings.numberUnitStyle;
   $('#longContextToggle').checked = settings.longContext;
   populateThemeEditor();
   setExchangeRateMetadata(settings.exchangeRateSource, settings.exchangeRateDate, settings.exchangeRateFetchedAt);
@@ -844,6 +871,7 @@ async function applySettingsFromDialog() {
   settings.exchangeRateDate = $('#exchangeRate').dataset.rateDate || '';
   settings.exchangeRateFetchedAt = $('#exchangeRate').dataset.fetchedAt || '';
   settings.refreshIntervalSeconds = normalizeRefreshInterval($('#refreshInterval').value);
+  settings.numberUnitStyle = $('#numberUnitStyle').value === 'chinese' ? 'chinese' : 'international';
   for (const key of THEME_KEYS) settings[key] = normalizeHex(settings[key], DEFAULT_SETTINGS[key]);
   settings.longContext = $('#longContextToggle').checked;
   const prices = {};
@@ -864,14 +892,17 @@ async function applySettingsFromDialog() {
       accent: settings.themeAccent, background: settings.themeBackground, panel: settings.themePanel,
       text: settings.themeText, muted: settings.themeMuted, secondary: settings.themeSecondary
     });
-    const [refreshResponse, themeResponse] = await Promise.all([
+    const [refreshResponse, themeResponse, unitResponse] = await Promise.all([
       fetch(`/api/settings/refresh?seconds=${seconds}`, { cache: 'no-store' }),
-      fetch(`/api/settings/theme?${themeQuery}`, { cache: 'no-store' })
+      fetch(`/api/settings/theme?${themeQuery}`, { cache: 'no-store' }),
+      fetch(`/api/settings/units?style=${encodeURIComponent(settings.numberUnitStyle)}`, { cache: 'no-store' })
     ]);
     if (!refreshResponse.ok) throw new Error((await refreshResponse.json()).error || `HTTP ${refreshResponse.status}`);
     if (!themeResponse.ok) throw new Error((await themeResponse.json()).error || `HTTP ${themeResponse.status}`);
+    if (!unitResponse.ok) throw new Error((await unitResponse.json()).error || `HTTP ${unitResponse.status}`);
     const shared = await themeResponse.json();
     settings.refreshIntervalSeconds = normalizeRefreshInterval((await refreshResponse.json()).refreshIntervalSeconds);
+    settings.numberUnitStyle = (await unitResponse.json()).numberUnitStyle === 'chinese' ? 'chinese' : 'international';
     for (const key of THEME_KEYS) settings[key] = normalizeHex(shared[key], settings[key]);
     applyTheme();
     saveSettings();
@@ -961,6 +992,32 @@ $('#exportButton').addEventListener('click', async () => {
     button.classList.remove('loading');
   }
 });
+$('#historyExportButton').addEventListener('click', async () => {
+  const button = $('#historyExportButton');
+  button.classList.add('loading');
+  try {
+    const response = await fetch('/api/export/history', { cache: 'no-store' });
+    if (!response.ok) throw new Error((await response.json()).error || `HTTP ${response.status}`);
+    const bundle = await response.json();
+    if (bundle.kind !== 'codex-token-meter-history-summary') throw new Error('历史汇总格式无效');
+    const blob = new Blob([JSON.stringify(bundle, null, 2)], { type: 'application/json;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = bundle.suggestedFileName || `codex-meter-history-${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    showToast(`已导出 ${Number(bundle.range?.dayCount || 0).toLocaleString('zh-CN')} 天匿名汇总`);
+  } catch (error) {
+    showToast(`历史导出失败：${error.message}`, true);
+  } finally {
+    button.classList.remove('loading');
+  }
+});
+$('#accountExactButton').addEventListener('click', () => $('#exactUsageDialog').showModal());
+$$('[data-close-exact]').forEach(button => button.addEventListener('click', () => $('#exactUsageDialog').close()));
 $('#settingsButton').addEventListener('click', () => {
   themeBeforeDialog = Object.fromEntries(THEME_KEYS.map(key => [key, settings[key]]));
   populatePriceRows();
@@ -995,6 +1052,7 @@ $('#resetPrices').addEventListener('click', () => {
     exchangeRateFetchedAt: settings.exchangeRateFetchedAt,
     exchangeRateSource: settings.exchangeRateSource,
     refreshIntervalSeconds: settings.refreshIntervalSeconds,
+    numberUnitStyle: settings.numberUnitStyle,
     themeAccent: settings.themeAccent,
     themeBackground: settings.themeBackground,
     themePanel: settings.themePanel,
