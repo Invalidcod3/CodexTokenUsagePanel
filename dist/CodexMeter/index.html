@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>Token 明细</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div class="noise"></div>
+  <main class="shell">
+    <header class="topbar">
+      <div class="detail-heading"><strong>Token 明细</strong><span>账户总账与设备归因</span></div>
+      <div class="top-actions">
+        <div class="live-pill"><span></span><em id="scanStatus">正在读取日志</em></div>
+        <button id="importButton" class="icon-button" type="button" title="合并其他来源" aria-label="合并其他来源">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0 4-4m-4 4-4-4M5 19h14"/></svg>
+        </button>
+        <button id="exportButton" class="icon-button" type="button" title="导出多设备 JSON 数据包" aria-label="导出多设备 JSON 数据包">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4m0 0 4 4m-4-4-4 4M5 20h14"/></svg>
+        </button>
+        <button id="refreshButton" class="icon-button" type="button" title="刷新数据" aria-label="刷新数据">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.34 5.66M20 4v7h-7"/></svg>
+        </button>
+        <button id="settingsButton" class="icon-button" type="button" title="费用设置" aria-label="费用设置">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1.03 1.56V21h-4v-.09A1.7 1.7 0 0 0 8.94 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.57 15 1.7 1.7 0 0 0 3 14H3v-4h.09A1.7 1.7 0 0 0 4.6 8.94a1.7 1.7 0 0 0-.34-1.88L4.2 7l2.83-2.83.06.06A1.7 1.7 0 0 0 9 4.57 1.7 1.7 0 0 0 10 3V3h4v.09a1.7 1.7 0 0 0 1.06 1.51 1.7 1.7 0 0 0 1.88-.34L17 4.2 19.83 7l-.06.06A1.7 1.7 0 0 0 19.43 9 1.7 1.7 0 0 0 21 10h.09v4H21a1.7 1.7 0 0 0-1.6 1z"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <section class="widget-view" aria-label="Codex Token 小组件">
+      <div class="widget-period period-switch" role="group" aria-label="小组件统计周期">
+        <button data-days="7">7天</button><button data-days="30">30天</button><button data-days="0" class="active">全部</button>
+      </div>
+      <div class="widget-main">
+        <span class="section-kicker">TOTAL TOKEN USAGE</span>
+        <strong id="widgetTotal">—</strong>
+        <small><span id="widgetRequests">0 次调用</span><i></i><span id="widgetSessions">0 个任务</span></small>
+      </div>
+      <div class="widget-cost">
+        <div><span>API 等价开销</span><strong id="widgetCostUsd">—</strong></div>
+        <div><span>人民币估算</span><strong id="widgetCostCny">—</strong></div>
+      </div>
+      <div class="widget-chart"><canvas id="widgetChart"></canvas></div>
+      <div class="widget-stats">
+        <div><span>缓存命中</span><b id="widgetCache">—</b></div>
+        <div><span>数据来源</span><b id="widgetSources">—</b></div>
+        <div><span>额度窗口</span><b id="widgetLimit">—</b></div>
+      </div>
+      <div class="widget-footer"><span class="pulse-dot"></span><span id="widgetUpdated">正在同步</span><button id="widgetExpand" type="button">完整面板 ↗</button></div>
+    </section>
+
+    <section class="hero">
+      <div>
+        <div class="eyebrow"><span>ACCOUNT LEDGER</span><i></i><span>LOCAL ATTRIBUTION</span></div>
+        <h1>Token 使用明细</h1>
+        <p>账户端统计 lifetime 总量；设备日志拆分输入、缓存、输出和模型费用，缺少明细的部分单独标为未归因。</p>
+      </div>
+      <div class="period-switch" role="group" aria-label="统计周期">
+        <button data-days="7">7 天</button>
+        <button data-days="30">30 天</button>
+        <button data-days="0" class="active">全部</button>
+      </div>
+    </section>
+
+    <section class="account-ledger">
+      <article class="account-total">
+        <div class="account-title"><span class="section-kicker">CHATGPT ACCOUNT · LIFETIME</span><span id="accountSync" class="account-sync">正在连接账户</span></div>
+        <strong id="accountLifetime">—</strong>
+        <small>OpenAI 账户端权威总量</small>
+        <div class="account-projection"><span>按可归因日志结构外推 API 等价费用</span><b id="accountProjectedCost">—</b><em>仅为情景估算，并非账单</em></div>
+      </article>
+      <article class="reconcile-panel">
+        <div class="reconcile-stat"><span>可归因日志</span><b id="accountLocal">—</b><small>本机、归档与已导入会话</small></div>
+        <div class="reconcile-stat warning"><span>未归因</span><b id="accountUnattributed">—</b><small>账户总量减可见日志</small></div>
+        <div class="reconcile-stat"><span>明细覆盖率</span><b id="accountCoverage">—</b><small>可拆分输入/输出的比例</small></div>
+        <div class="reconcile-stat"><span>单日峰值</span><b id="accountPeak">—</b><small id="accountDays">账户每日桶</small></div>
+        <div id="accountDailyBars" class="account-daily-bars" aria-label="账户每日 Token 用量"></div>
+      </article>
+    </section>
+
+    <section class="kpi-grid">
+      <article class="kpi-card kpi-primary">
+        <div class="kpi-label"><span>本机可拆分 Token</span><span class="mini-tag" id="requestCount">0 REQUESTS</span></div>
+        <div class="kpi-value" id="totalTokens">—</div>
+        <div class="kpi-foot"><span id="sessionCount">0 个任务</span><span id="dateRange">—</span></div>
+      </article>
+      <article class="kpi-card cost-card">
+        <div class="kpi-label"><span>本机明细 API 等价开销</span><button class="info-dot" data-tooltip="只对有模型、输入、缓存和输出明细的本地日志估算；未归因账户 Token 不计入费用。">i</button></div>
+        <div class="kpi-value money" id="costUsd">—</div>
+        <div class="kpi-foot"><span id="costCny">约 ¥—</span><span id="priceDate">单价：2026-08-04</span></div>
+      </article>
+      <article class="kpi-card">
+        <div class="kpi-label"><span>缓存节省</span><span class="down-badge">CACHE HIT</span></div>
+        <div class="kpi-value" id="savedUsd">—</div>
+        <div class="kpi-foot"><span id="cacheRate">—% 命中率</span><span>相较无缓存</span></div>
+      </article>
+      <article class="kpi-card">
+        <div class="kpi-label"><span>当前额度窗口</span><span class="pulse-dot"></span></div>
+        <div class="kpi-value" id="limitUsed">—</div>
+        <div class="progress"><i id="limitBar"></i></div>
+        <div class="kpi-foot"><span id="limitWindow">Codex 额度</span><span id="limitReset">—</span></div>
+      </article>
+    </section>
+
+    <section class="analytics-grid">
+      <article class="panel trend-panel">
+        <div class="panel-head">
+          <div><span class="section-kicker">USAGE OVER TIME</span><h2>用量趋势</h2><small class="trend-disclaimer">本地日志实时估算</small></div>
+          <div class="legend"><span class="legend-input">输入</span><span class="legend-output">输出</span></div>
+        </div>
+        <div class="chart-wrap"><canvas id="trendChart"></canvas><div id="chartTooltip" class="chart-tooltip"></div></div>
+      </article>
+
+      <article class="panel mix-panel">
+        <div class="panel-head"><div><span class="section-kicker">TOKEN MIX</span><h2>Token 构成</h2></div></div>
+        <div class="mix-body">
+          <div class="donut" id="tokenDonut"><div><strong id="cacheCenter">—%</strong><span>缓存占输入</span></div></div>
+          <div class="mix-list">
+            <div><i class="swatch uncached"></i><span>非缓存输入</span><b id="uncachedTokens">—</b></div>
+            <div><i class="swatch cached"></i><span>缓存输入</span><b id="cachedTokens">—</b></div>
+            <div><i class="swatch output"></i><span>输出</span><b id="outputTokens">—</b></div>
+            <div><i class="swatch reasoning"></i><span>其中推理</span><b id="reasoningTokens">—</b></div>
+          </div>
+        </div>
+      </article>
+    </section>
+
+    <section class="panel models-panel">
+      <div class="panel-head">
+        <div><span class="section-kicker">MODEL BREAKDOWN</span><h2>模型明细</h2></div>
+        <span class="subtle" id="modelCount">0 个模型</span>
+      </div>
+      <div id="modelRows" class="model-rows"></div>
+    </section>
+
+    <section class="panel sessions-panel">
+      <div class="panel-head sessions-head">
+        <div><span class="section-kicker">RECENT SESSIONS</span><h2>任务明细</h2></div>
+        <label class="search"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg><input id="sessionSearch" type="search" placeholder="搜索任务或项目"></label>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>任务</th><th>模型</th><th>开始时间</th><th class="num">Token</th><th class="num">API 估算</th></tr></thead>
+          <tbody id="sessionRows"></tbody>
+        </table>
+      </div>
+      <div id="emptyState" class="empty-state" hidden>没有匹配的任务</div>
+    </section>
+
+    <footer>
+      <span>账户总量通过本机 Codex 登录只读同步；明细读取 <code>sessions</code> 与 <code>archived_sessions</code>。</span>
+      <span>费用只覆盖可归因日志，不含未归因 Token、工具调用费、区域加价与订阅费。</span>
+    </footer>
+  </main>
+
+  <dialog id="settingsDialog">
+    <form method="dialog" class="dialog-card">
+      <div class="dialog-head"><div><span class="section-kicker">APP SETTINGS</span><h2>显示与费用设置</h2></div><button class="close-button" value="cancel" aria-label="关闭">×</button></div>
+      <p>配色、刷新间隔与费用换算会应用到小组件和 Token 明细；在线汇率是参考值，不代表银行成交价。</p>
+      <div id="exchangeRateField" class="field exchange-field">
+        <span><b>美元兑人民币汇率</b><small id="exchangeRateMeta">当前为手动汇率</small></span>
+        <div class="exchange-controls"><input id="exchangeRate" type="number" min="0" step="0.0001"><button id="fetchExchangeRate" type="button" class="secondary-button">在线获取</button></div>
+      </div>
+      <label class="toggle-row"><span><b>启用人民币换算</b><small>关闭后只显示美元 API 等价费用</small></span><input id="currencyConversionToggle" type="checkbox"><i></i></label>
+      <label class="toggle-row"><span><b>计入长上下文加价</b><small>单次输入超过 272K：输入 ×2、输出 ×1.5</small></span><input id="longContextToggle" type="checkbox"><i></i></label>
+      <label class="field refresh-field"><span><b>自动刷新间隔</b><small>小组件与 Token 明细共用，支持小数</small></span><span class="unit-input"><input id="refreshInterval" type="number" min="0.5" max="3600" step="0.1"><em>秒</em></span></label>
+      <section class="theme-customizer" aria-labelledby="themeTitle">
+        <div class="theme-head"><div><b id="themeTitle">界面配色</b><small>使用 HLS 选色板调整强调色与背景色</small></div><button id="resetTheme" type="button" class="secondary-button">恢复默认</button></div>
+        <div class="theme-targets">
+          <button type="button" class="theme-target active" data-theme-target="themeAccent"><i id="accentSwatch"></i><span><b>强调色</b><small id="accentHex">#B8FF34</small></span></button>
+          <button type="button" class="theme-target" data-theme-target="themeBackground"><i id="backgroundSwatch"></i><span><b>背景色</b><small id="backgroundHex">#090B0D</small></span></button>
+          <button type="button" class="theme-target" data-theme-target="themePanel"><i id="panelSwatch"></i><span><b>卡片色</b><small id="panelHex">#131619</small></span></button>
+          <button type="button" class="theme-target" data-theme-target="themeText"><i id="textSwatch"></i><span><b>主文字</b><small id="textHex">#F3F6F4</small></span></button>
+          <button type="button" class="theme-target" data-theme-target="themeMuted"><i id="mutedSwatch"></i><span><b>次级文字</b><small id="mutedHex">#8A9290</small></span></button>
+          <button type="button" class="theme-target" data-theme-target="themeSecondary"><i id="secondarySwatch"></i><span><b>辅助色</b><small id="secondaryHex">#9D84EF</small></span></button>
+        </div>
+        <div class="hls-picker" id="hlsPicker">
+          <div class="hls-preview"><i id="hlsPreview"></i><span><b id="hlsTargetLabel">强调色</b><small id="hlsHexValue">#B8FF34</small></span></div>
+          <label><span>H · 色相</span><input id="hlsHue" type="range" min="0" max="360" step="1"><output id="hlsHueValue">0°</output></label>
+          <label><span>L · 亮度</span><input id="hlsLightness" type="range" min="0" max="100" step="1"><output id="hlsLightnessValue">0%</output></label>
+          <label><span>S · 饱和度</span><input id="hlsSaturation" type="range" min="0" max="100" step="1"><output id="hlsSaturationValue">0%</output></label>
+        </div>
+      </section>
+      <div class="price-table-head"><span>模型</span><span>输入</span><span>缓存</span><span>输出</span></div>
+      <div id="priceRows" class="price-rows"></div>
+      <div class="dialog-actions"><button id="resetPrices" type="button" class="secondary-button">恢复官方单价</button><button id="saveSettings" value="default" class="primary-button">保存设置</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="importDialog">
+    <div class="dialog-card import-dialog-card">
+      <div class="dialog-head"><div><span class="section-kicker">DATA SOURCES</span><h2>合并其他 Token 用量</h2></div><button class="close-button" data-close-import aria-label="关闭">×</button></div>
+      <p>这台电脑上的 Codex 日志已经自动计入。建议在每台设备的详细页面导出 JSON 数据包，再通过导入脚本合并；相同会话 ID 会自动去重，并保留 Token 更完整的版本。</p>
+      <div id="sourceSummary" class="source-summary"></div>
+      <div class="import-option">
+        <span class="import-index">01</span>
+        <div><b>导入另一台设备导出的 JSON</b><p>运行导入脚本并选择 <code>codex-meter-*.json</code>。会校验内容、按 exportId 防止重复导入，并按会话 ID 合并。</p><code>powershell -ExecutionPolicy Bypass -File .\Import-CodexUsage.ps1</code></div>
+      </div>
+      <div class="import-option">
+        <span class="import-index">02</span>
+        <div><b>直接导入另一台电脑的 Codex 日志</b><p>在文件选择器中取消 JSON 选择，然后选择复制过来的 <code>.codex</code> 或 <code>sessions</code> 文件夹。</p></div>
+      </div>
+      <div class="import-option">
+        <span class="import-index">03</span>
+        <div><b>加入 API 或其他客户端的汇总</b><p>编辑 <code>imports/manual-usage.json</code>，填写稳定的 <code>id</code>、模型和 Token 数；保存后刷新即可计入。</p></div>
+      </div>
+      <div class="dialog-actions"><button data-close-import type="button" class="secondary-button">稍后处理</button><button id="openImportsButton" type="button" class="primary-button">打开导入文件夹</button></div>
+    </div>
+  </dialog>
+
+  <div id="toast" class="toast" role="status"></div>
+  <script src="/app.js"></script>
+</body>
+</html>

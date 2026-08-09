@@ -1,0 +1,4 @@
+.dotnet-home/
+.nuget-packages/
+CodexMeter.App/bin/
+CodexMeter.App/obj/

@@ -1,0 +1,53 @@
+<Window x:Class="CodexMeter.TrayMenuWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Codex Meter 菜单" Width="224" Height="252"
+        WindowStyle="None" ResizeMode="NoResize" ShowInTaskbar="False" Topmost="True"
+        AllowsTransparency="True" Background="Transparent" WindowStartupLocation="Manual"
+        Foreground="#E9EEEB" FontFamily="Segoe UI" KeyDown="Window_KeyDown">
+  <Window.Resources>
+    <Style x:Key="TrayActionButton" TargetType="Button">
+      <Setter Property="Height" Value="40"/>
+      <Setter Property="Margin" Value="0,1"/>
+      <Setter Property="Padding" Value="11,0"/>
+      <Setter Property="Background" Value="Transparent"/>
+      <Setter Property="Foreground" Value="#D5DCD8"/>
+      <Setter Property="Cursor" Value="Hand"/>
+      <Setter Property="BorderThickness" Value="0"/>
+      <Setter Property="HorizontalContentAlignment" Value="Left"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="Button">
+            <Border x:Name="Chrome" Background="{TemplateBinding Background}" CornerRadius="8" Padding="{TemplateBinding Padding}">
+              <ContentPresenter HorizontalAlignment="Left" VerticalAlignment="Center"/>
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Chrome" Property="Background" Value="#212927"/><Setter Property="Foreground" Value="#FFFFFF"/></Trigger>
+              <Trigger Property="IsPressed" Value="True"><Setter TargetName="Chrome" Property="Background" Value="#2A342F"/></Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+  </Window.Resources>
+  <Border Margin="8" Padding="10" CornerRadius="14" BorderBrush="#35413C" BorderThickness="1" Background="#111617">
+    <Border.Effect><DropShadowEffect BlurRadius="22" ShadowDepth="5" Opacity="0.55" Color="#000000"/></Border.Effect>
+    <Grid>
+      <Grid.RowDefinitions><RowDefinition Height="46"/><RowDefinition Height="*"/><RowDefinition Height="1"/><RowDefinition Height="42"/></Grid.RowDefinitions>
+      <Grid Grid.Row="0" Margin="7,0,5,4">
+        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+          <Border Width="27" Height="27" CornerRadius="7" Background="#F0F3F1" Padding="4"><Image x:Name="BrandIcon" Stretch="Uniform"/></Border>
+          <StackPanel Margin="9,0,0,0" VerticalAlignment="Center"><TextBlock Text="Codex Meter" FontSize="11" FontWeight="SemiBold"/><TextBlock Text="账户与设备用量" Foreground="#727D78" FontSize="8"/></StackPanel>
+        </StackPanel>
+        <Ellipse Width="7" Height="7" HorizontalAlignment="Right" Fill="#B8FF34"/>
+      </Grid>
+      <StackPanel Grid.Row="1">
+        <Button Style="{StaticResource TrayActionButton}" Click="ShowWidget_Click"><StackPanel Orientation="Horizontal"><TextBlock Text="▣" Width="26" Foreground="#9FAA9F"/><TextBlock Text="显示小组件"/></StackPanel></Button>
+        <Button Style="{StaticResource TrayActionButton}" Click="ShowDetails_Click"><StackPanel Orientation="Horizontal"><TextBlock Text="▤" Width="26" Foreground="#9FAA9F"/><TextBlock Text="Token 明细"/></StackPanel></Button>
+        <Button Style="{StaticResource TrayActionButton}" Click="Refresh_Click"><StackPanel Orientation="Horizontal"><TextBlock Text="↻" Width="26" Foreground="#9FAA9F"/><TextBlock Text="刷新数据"/></StackPanel></Button>
+      </StackPanel>
+      <Border Grid.Row="2" Background="#29312E" Margin="7,0"/>
+      <Button Grid.Row="3" Style="{StaticResource TrayActionButton}" Foreground="#D79A85" Click="Exit_Click"><StackPanel Orientation="Horizontal"><TextBlock Text="○" Width="26"/><TextBlock Text="退出 Codex Meter"/></StackPanel></Button>
+    </Grid>
+  </Border>
+</Window>

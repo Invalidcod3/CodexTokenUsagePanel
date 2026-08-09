@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>CodexMeter</AssemblyName>
+    <RootNamespace>CodexMeter</RootNamespace>
+    <Version>1.0.0</Version>
+    <ApplicationIcon>Assets\OpenAI.ico</ApplicationIcon>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4129.50" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="..\Start-CodexMeter.ps1" Link="Start-CodexMeter.ps1" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="..\Import-CodexUsage.ps1" Link="Import-CodexUsage.ps1" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="..\index.html" Link="index.html" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="..\app.js" Link="app.js" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="..\styles.css" Link="styles.css" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="..\meter.config.json" Link="meter.config.json" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="..\imports\manual-usage.json" Link="imports\manual-usage.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

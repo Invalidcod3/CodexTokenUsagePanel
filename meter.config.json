@@ -1,0 +1,12 @@
+{
+    "additionalSessionRoots":  [
+
+                               ],
+    "refreshIntervalSeconds":  15,
+    "themeAccent":  "#B8FF34",
+    "themeBackground":  "#090B0D",
+    "themePanel":  "#131619",
+    "themeText":  "#F3F6F4",
+    "themeMuted":  "#8A9290",
+    "themeSecondary":  "#9D84EF"
+}
